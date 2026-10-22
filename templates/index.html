@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SpudScan — Potato Leaf Disease Detection</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f5f1e8; --surface:#fffdf8; --ink:#1d2a22; --muted:#6b776f; --line:#e4ddcc;
+  --green:#2f5d46; --green-d:#1f4332; --gold:#b88a3b;
+  --ok:#2f7d4f; --warn:#c98a1b; --bad:#b4442f;
+  --shadow:0 10px 30px rgba(31,67,50,.08);
+}
+@media (prefers-color-scheme: dark){
+  :root{--bg:#121a16; --surface:#19231d; --ink:#ecf1ea; --muted:#93a198; --line:#2a372f;
+        --green:#6fb08a; --green-d:#4f9470; --gold:#d3a850; --shadow:0 10px 30px rgba(0,0,0,.35);}
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--ink);line-height:1.55;min-height:100vh}
+h1,h2,h3{font-family:Fraunces,Georgia,serif;font-weight:700;letter-spacing:-.01em}
+.wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+
+header{padding:22px 0;border-bottom:1px solid var(--line)}
+header .wrap{display:flex;align-items:center;justify-content:space-between}
+.brand{display:flex;align-items:center;gap:10px;font-family:Fraunces,serif;font-size:22px;font-weight:700}
+.brand svg{width:30px;height:30px}
+.tag{font-size:12px;color:var(--muted);border:1px solid var(--line);padding:5px 12px;border-radius:99px}
+
+.hero{padding:56px 0 28px;text-align:center}
+.hero h1{font-size:clamp(32px,5vw,50px);line-height:1.12;max-width:720px;margin:0 auto 14px}
+.hero p{color:var(--muted);max-width:560px;margin:0 auto;font-size:17px}
+
+main{display:grid;grid-template-columns:1fr 1fr;gap:24px;padding:28px 0 40px;align-items:start}
+@media(max-width:860px){main{grid-template-columns:1fr}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);padding:24px}
+.card h2{font-size:20px;margin-bottom:14px}
+
+#drop{border:2px dashed var(--line);border-radius:14px;min-height:300px;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;text-align:center;padding:20px;cursor:pointer;transition:.2s;position:relative;overflow:hidden}
+#drop:hover,#drop.drag{border-color:var(--green);background:rgba(47,93,70,.05)}
+#drop svg{width:46px;height:46px;color:var(--green);margin-bottom:10px}
+#drop b{font-weight:600}
+#drop small{color:var(--muted);display:block;margin-top:4px}
+#preview{max-width:100%;max-height:340px;border-radius:10px;display:none;object-fit:contain}
+.scan{position:absolute;left:0;right:0;height:3px;background:linear-gradient(90deg,transparent,var(--green),transparent);
+  top:0;display:none;animation:scan 1.4s ease-in-out infinite}
+@keyframes scan{0%{top:0}50%{top:calc(100% - 3px)}100%{top:0}}
+.actions{display:flex;gap:10px;margin-top:16px}
+button{font:inherit;font-weight:600;border:0;border-radius:10px;padding:12px 18px;cursor:pointer;transition:.15s}
+.primary{background:var(--green);color:#fff;flex:1}
+.primary:hover:not(:disabled){background:var(--green-d)}
+.primary:disabled{opacity:.5;cursor:not-allowed}
+.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.ghost:hover{border-color:var(--green)}
+.hint{font-size:13px;color:var(--muted);margin-top:12px}
+
+#empty{color:var(--muted);text-align:center;padding:60px 10px}
+#empty svg{width:42px;height:42px;opacity:.5;margin-bottom:8px}
+#result{display:none}
+.verdict{display:flex;align-items:center;gap:18px;margin-bottom:18px}
+.ring{--p:0;--c:var(--ok);width:92px;height:92px;border-radius:50%;flex:none;display:grid;place-items:center;
+  background:conic-gradient(var(--c) calc(var(--p)*1%),var(--line) 0)}
+.ring span{width:74px;height:74px;border-radius:50%;background:var(--surface);display:grid;place-items:center;font-weight:700;font-size:18px}
+.verdict h3{font-size:26px;line-height:1.15}
+.badge{display:inline-block;font-size:12px;font-weight:600;padding:3px 10px;border-radius:99px;margin-top:6px;color:#fff}
+.sev-none{background:var(--ok)}.sev-moderate{background:var(--warn)}.sev-severe{background:var(--bad)}
+.alert{background:rgba(201,138,27,.12);border:1px solid var(--warn);color:var(--ink);border-radius:10px;padding:10px 14px;font-size:14px;margin-bottom:16px;display:none}
+.summary{color:var(--muted);margin-bottom:16px}
+
+.bars .row{margin-bottom:10px}
+.bars .lbl{display:flex;justify-content:space-between;font-size:13.5px;margin-bottom:4px}
+.bars .track{height:8px;background:var(--line);border-radius:99px;overflow:hidden}
+.bars .fill{height:100%;background:var(--green);border-radius:99px;width:0;transition:width .8s cubic-bezier(.2,.7,.2,1)}
+
+.tabs{display:flex;gap:6px;margin:22px 0 12px;border-bottom:1px solid var(--line)}
+.tab{background:none;color:var(--muted);padding:8px 14px;border-radius:8px 8px 0 0;border-bottom:2px solid transparent}
+.tab.on{color:var(--green);border-bottom-color:var(--green)}
+.panel{display:none}.panel.on{display:block}
+.panel li{margin:0 0 8px 20px;font-size:15px}
+.meta{font-size:13px;color:var(--muted);margin-top:10px}
+.report-actions{margin-top:18px;display:flex;gap:10px}
+
+.history{padding-bottom:50px}
+.history-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.history-head h2{font-size:20px}
+#hist{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px}
+.h-item{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.h-item img{width:100%;height:110px;object-fit:cover;display:block}
+.h-item div{padding:10px 12px;font-size:13px}
+.h-item b{display:block;font-size:14px}
+.h-item span{color:var(--muted)}
+.none{color:var(--muted);font-size:14px}
+
+footer{border-top:1px solid var(--line);padding:22px 0;color:var(--muted);font-size:13px;text-align:center}
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--bad);color:#fff;padding:12px 20px;border-radius:10px;display:none;z-index:9}
+.spin{width:16px;height:16px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;display:inline-block;animation:r .7s linear infinite;vertical-align:-3px;margin-right:8px}
+@keyframes r{to{transform:rotate(360deg)}}
+@media print{header,.hero,#upload-card,.history,footer,.report-actions{display:none}main{display:block}.card{box-shadow:none}}
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <div class="brand">
+    <svg viewBox="0 0 32 32" fill="none"><ellipse cx="16" cy="18" rx="12" ry="9" fill="#b88a3b"/><circle cx="11" cy="17" r="1.3" fill="#7a5a22"/><circle cx="19" cy="20" r="1.3" fill="#7a5a22"/><circle cx="21" cy="15" r="1.1" fill="#7a5a22"/><path d="M16 9c0-4 3-6 7-6-.5 4-3 6-7 6z" fill="#2f5d46"/></svg>
+    SpudScan
+  </div>
+  <span class="tag">Vision Transformer · ViT-B/16</span>
+</div></header>
+
+<section class="hero wrap">
+  <h1>Catch potato blight before it spreads</h1>
+  <p>Upload a photo of a potato leaf and get an instant diagnosis with confidence scores and treatment guidance.</p>
+</section>
+
+<main class="wrap">
+  <section class="card" id="upload-card">
+    <h2>1. Upload a leaf</h2>
+    <div id="drop" tabindex="0">
+      <div id="placeholder">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4m0 0L7 9m5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+        <b>Drag and drop an image here</b>
+        <small>or click to browse · JPG, PNG, WEBP · up to 8 MB</small>
+      </div>
+      <img id="preview" alt="Selected leaf">
+      <div class="scan" id="scan"></div>
+    </div>
+    <input type="file" id="file" accept="image/*" hidden>
+    <div class="actions">
+      <button class="primary" id="go" disabled>Analyze leaf</button>
+      <button class="ghost" id="reset">Clear</button>
+    </div>
+    <p class="hint">Best results: a single leaf, well lit, filling most of the frame, plain background.</p>
+  </section>
+
+  <section class="card">
+    <h2>2. Diagnosis</h2>
+    <div id="empty">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 19c0-8 5-14 15-14 0 10-6 15-14 15"/><path d="M5 19c3-5 6-8 10-10"/></svg>
+      <p>Your results will appear here.</p>
+    </div>
+    <div id="result">
+      <div class="verdict">
+        <div class="ring" id="ring"><span id="pct">0%</span></div>
+        <div><h3 id="dname"></h3><span class="badge" id="sev"></span></div>
+      </div>
+      <div class="alert" id="alert">Confidence is low. The image may not be a clear potato leaf. Try a sharper, closer photo.</div>
+      <p class="summary" id="summary"></p>
+      <div class="bars" id="bars"></div>
+      <div class="tabs">
+        <button class="tab on" data-t="sym">Symptoms</button>
+        <button class="tab" data-t="trt">Treatment</button>
+      </div>
+      <div class="panel on" id="sym"><ul></ul></div>
+      <div class="panel" id="trt"><ul></ul></div>
+      <p class="meta" id="path"></p>
+      <div class="report-actions">
+        <button class="ghost" onclick="window.print()">Print report</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<section class="wrap history">
+  <div class="history-head"><h2>Recent scans</h2><button class="ghost" id="clearHist">Clear history</button></div>
+  <div id="hist"></div>
+</section>
+
+<footer>SpudScan is a decision-support tool. Confirm serious diagnoses with a local agronomist before treating.</footer>
+<div class="toast" id="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const drop=$('#drop'), fileIn=$('#file'), prev=$('#preview'), ph=$('#placeholder'), go=$('#go'), scan=$('#scan');
+let current=null, thumb=null;
+
+drop.onclick=()=>fileIn.click();
+drop.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();fileIn.click()}};
+['dragenter','dragover'].forEach(e=>drop.addEventListener(e,ev=>{ev.preventDefault();drop.classList.add('drag')}));
+['dragleave','drop'].forEach(e=>drop.addEventListener(e,ev=>{ev.preventDefault();drop.classList.remove('drag')}));
+drop.addEventListener('drop',e=>setFile(e.dataTransfer.files[0]));
+fileIn.onchange=e=>setFile(e.target.files[0]);
+
+function toast(msg){const t=$('#toast');t.textContent=msg;t.style.display='block';setTimeout(()=>t.style.display='none',4000)}
+
+function setFile(f){
+  if(!f) return;
+  if(!f.type.startsWith('image/')) return toast('Please choose an image file.');
+  if(f.size>8*1024*1024) return toast('Image is larger than 8 MB.');
+  current=f;
+  const r=new FileReader();
+  r.onload=e=>{prev.src=e.target.result;prev.style.display='block';ph.style.display='none';makeThumb(e.target.result)};
+  r.readAsDataURL(f);
+  go.disabled=false;
+  $('#result').style.display='none';$('#empty').style.display='block';
+}
+function makeThumb(src){
+  const i=new Image();i.onload=()=>{const c=document.createElement('canvas');const s=240/Math.max(i.width,i.height);
+    c.width=i.width*s;c.height=i.height*s;c.getContext('2d').drawImage(i,0,0,c.width,c.height);thumb=c.toDataURL('image/jpeg',.7)};i.src=src;
+}
+
+$('#reset').onclick=()=>{current=null;prev.style.display='none';ph.style.display='block';go.disabled=true;fileIn.value='';
+  $('#result').style.display='none';$('#empty').style.display='block'};
+
+go.onclick=async()=>{
+  if(!current) return;
+  go.disabled=true;go.innerHTML='<span class="spin"></span>Analyzing...';scan.style.display='block';
+  const fd=new FormData();fd.append('image',current);
+  try{
+    const res=await fetch('/predict',{method:'POST',body:fd});
+    const data=await res.json();
+    if(!res.ok) throw new Error(data.error||'Prediction failed.');
+    render(data);saveHistory(data);
+  }catch(err){toast(err.message)}
+  finally{go.disabled=false;go.textContent='Analyze leaf';scan.style.display='none'}
+};
+
+function render(d){
+  $('#empty').style.display='none';$('#result').style.display='block';
+  const pct=Math.round(d.confidence*1000)/10, info=d.info||{};
+  const ring=$('#ring');
+  ring.style.setProperty('--p',pct);
+  ring.style.setProperty('--c',info.severity==='severe'?'var(--bad)':info.severity==='moderate'?'var(--warn)':'var(--ok)');
+  $('#pct').textContent=pct.toFixed(1)+'%';
+  $('#dname').textContent=d.name;
+  const sev=$('#sev');sev.className='badge sev-'+(info.severity||'none');
+  sev.textContent={none:'No disease',moderate:'Moderate risk',severe:'High risk'}[info.severity||'none'];
+  $('#alert').style.display=d.low_confidence?'block':'none';
+  $('#summary').textContent=info.summary||'';
+  $('#bars').innerHTML=d.probabilities.map(p=>
+    `<div class="row"><div class="lbl"><span>${p.name}</span><span>${(p.probability*100).toFixed(1)}%</span></div>
+     <div class="track"><div class="fill" data-w="${p.probability*100}"></div></div></div>`).join('');
+  requestAnimationFrame(()=>document.querySelectorAll('.fill').forEach(f=>f.style.width=f.dataset.w+'%'));
+  $('#sym ul').innerHTML=(info.symptoms||[]).map(s=>`<li>${s}</li>`).join('');
+  $('#trt ul').innerHTML=(info.treatment||[]).map(s=>`<li>${s}</li>`).join('');
+  $('#path').textContent=info.pathogen?'Causal agent: '+info.pathogen:'';
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.t==='sym'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('on',p.id==='sym'));
+}
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x===t));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.toggle('on',p.id===t.dataset.t));
+});
+
+/* history (browser localStorage) */
+const KEY='spudscan_history';
+const getH=()=>{try{return JSON.parse(localStorage.getItem(KEY))||[]}catch{return[]}};
+function saveHistory(d){
+  const h=getH();h.unshift({name:d.name,conf:d.confidence,img:thumb,t:new Date().toLocaleString()});
+  try{localStorage.setItem(KEY,JSON.stringify(h.slice(0,12)))}catch{}
+  drawHistory();
+}
+function drawHistory(){
+  const h=getH();
+  $('#hist').innerHTML=h.length?h.map(i=>`<div class="h-item"><img src="${i.img||''}" alt=""><div><b>${i.name}</b>
+    <span>${(i.conf*100).toFixed(1)}% · ${i.t}</span></div></div>`).join(''):'<p class="none">No scans yet.</p>';
+}
+$('#clearHist').onclick=()=>{localStorage.removeItem(KEY);drawHistory()};
+drawHistory();
+</script>
+</body>
+</html>
